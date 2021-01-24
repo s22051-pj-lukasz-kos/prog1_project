@@ -32,9 +32,10 @@ void cursorPosition(HANDLE hOut);       // ustawia pozycjê kursora
 COORD cursorPositionStart(HANDLE hOut);  // ustawia pozycjê kursora po uruchomieniu
 int keyEvent(HANDLE hIn);               // funkcja zwraca wybrane virtual-key codes (numery klawiszy)
 void eventManager(HANDLE hOut);
-void keyEventManager(HANDLE hOut, bool &run, int vKeyCode, char &sign, int &symbSize);              // funkcja do poruszania siê kursorem
-void drawSymbol (HANDLE hOut, char &sign, int &symbSize, COORD cursorPosition);     // funkcja do rysowania symbolu
-void symbolSizeManager();
+void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize);              // funkcja do poruszania siê kursorem
+void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition);     // funkcja do rysowania symbolu
+void symbolSizeManager(HANDLE hOut, short &symbSize);
+COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD modPosition, short &symbSize);
 
 int main()
 {
@@ -43,7 +44,7 @@ int main()
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);   // ³¹cznik z wyjœciem standardowym z konsoli, z windows.h
     HANDLE hConsoleIn = GetStdHandle(STD_INPUT_HANDLE);   // ³¹cznik z wejœciem standardowym z konsoli
     char letter;                // wyœwietlany znak
-    int symbolSize;             // wielkoœæ wyœwietlanego symbolu
+    short symbolSize;             // wielkoœæ wyœwietlanego symbolu
     COORD middleWindow;         // œrodek okna
     bool running = true;        // zmienna do przerywania dzia³ania programu
     // zaimplementowana typ zmiennej do zmiany wygl¹du kursora
@@ -59,8 +60,7 @@ int main()
 
     drawSymbol(hConsoleOut, letter, symbolSize, middleWindow);        // drukowanie symbolu
     do {
-        keyEventManager(hConsoleOut, running, keyEvent(hConsoleIn), letter, symbolSize);
-
+        controls(hConsoleOut, running, keyEvent(hConsoleIn), letter, symbolSize);
     } while (running);
 
 
@@ -150,27 +150,31 @@ int keyEvent(HANDLE hIn) {
     return keyCode;
 }
 
-// funkcja do poruszania siê kursorem
-void keyEventManager(HANDLE hOut, bool &run, int vKeyCode, char &sign, int &symbSize) {
+// funkcja do zarz¹dzania sterowaniem
+void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize) {
     COORD cursorPosition = GetCursorPosition(hOut);
+    COORD newPosition = cursorPosition;
 
     switch (vKeyCode) {
         case 37 : {     // left arrow
-            // pierwszy warunek s³u¿y do ustalenia granic
-            cursorPosition.X--;
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
+            newPosition.X--;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            drawSymbol(hOut, sign, symbSize, newPosition);
             break; }
         case 38 : {     // up arrow
-            cursorPosition.Y--;
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
+            newPosition.Y--;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            drawSymbol(hOut, sign, symbSize, newPosition);
             break; }
         case 39 : {     // right arrow
-            cursorPosition.X++;
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
+            newPosition.X++;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            drawSymbol(hOut, sign, symbSize, newPosition);
             break; }
         case 40 : {     // down arrow
-            cursorPosition.Y++;
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
+            newPosition.Y++;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            drawSymbol(hOut, sign, symbSize, newPosition);
             break; }
         case 187 : {    // plus
             symbSize++;
@@ -187,7 +191,7 @@ void keyEventManager(HANDLE hOut, bool &run, int vKeyCode, char &sign, int &symb
 }
 
 // funkcja do rysowania symbolu
-void drawSymbol (HANDLE hOut, char &sign, int &symbSize, COORD cursorPosition) {
+void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition) {
     DWORD written;
     COORD symbolPartCoord = cursorPosition;
 
@@ -209,8 +213,25 @@ void drawSymbol (HANDLE hOut, char &sign, int &symbSize, COORD cursorPosition) {
 }
 
 // funkcja do zarz¹dzania wielkoœci¹ symbolu
-void symbolSizeManager() {
+void symbolSizeManager(HANDLE hOut, short &symbSize) {
+    COORD heightAndWidth = heightWidthWindow(hOut);
 
+
+}
+
+// funkcja ustalaj¹ca granice w poruszaniu siê
+COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, short &symbSize) {
+    COORD heightAndWidth = heightWidthWindow(hOut);
+    COORD returnPosition;
+
+    // warunek okreœlaj¹cy granice poruszania siê
+    if (newPosition.X >= 0 && newPosition.X < heightAndWidth.X - symbSize &&
+            newPosition.Y > 2 * symbSize && newPosition.Y < heightAndWidth.Y) {
+        returnPosition = newPosition;
+    } else
+        returnPosition = cursorPosition;
+
+    return returnPosition;
 }
 
 // funkcja testowa do testowania GetConsoleScreenBufferInfo()
