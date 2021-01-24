@@ -9,8 +9,9 @@
                                         https://en.cppreference.com/w/cpp/io
 
     TO DO:
-        1. napisaæ funkcjê do zarz¹dzania wielkoœci¹ znaku (ustaliæ warunki na bazie wielkoœci pola
-        2. napisaæ funkcjê, która ogarniczy poruszanie siê po ekranie (ustali granice)
+        1. problem ze zmian¹ wielkoœci okna - gdy okno zostaje zmniejszone do momentu gdy ekran przesuwa siê w dó³ to
+            granice s¹ ustawione poza ekranem (u góry). ZnaleŸæ sposób na zresetowanie granic lub u¿yæ innej
+            funkcji windowsowej.
 
 */
 
@@ -34,7 +35,7 @@ int keyEvent(HANDLE hIn);               // funkcja zwraca wybrane virtual-key co
 void eventManager(HANDLE hOut);
 void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize);              // funkcja do poruszania siê kursorem
 void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition);     // funkcja do rysowania symbolu
-void symbolSizeManager(HANDLE hOut, short &symbSize);
+void symbolSizeManager(HANDLE hOut, short &symbSize, short mod, COORD cursorPosition);
 COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD modPosition, short &symbSize);
 
 int main()
@@ -154,6 +155,7 @@ int keyEvent(HANDLE hIn) {
 void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize) {
     COORD cursorPosition = GetCursorPosition(hOut);
     COORD newPosition = cursorPosition;
+    short mod;
 
     switch (vKeyCode) {
         case 37 : {     // left arrow
@@ -177,11 +179,15 @@ void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize) 
             drawSymbol(hOut, sign, symbSize, newPosition);
             break; }
         case 187 : {    // plus
-            symbSize++;
+            //symbSize++;
+            mod = 1;
+            symbolSizeManager(hOut, symbSize, mod, cursorPosition);
             drawSymbol(hOut, sign, symbSize, cursorPosition);
             break; }
         case 189 : {    // minus
-            symbSize--;
+            //symbSize--;
+            mod = -1;
+            symbolSizeManager(hOut, symbSize, mod, cursorPosition);
             drawSymbol(hOut, sign, symbSize, cursorPosition);
             break; }
         case 27 : {     // ESC
@@ -213,10 +219,13 @@ void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition) 
 }
 
 // funkcja do zarz¹dzania wielkoœci¹ symbolu
-void symbolSizeManager(HANDLE hOut, short &symbSize) {
+void symbolSizeManager(HANDLE hOut, short &symbSize, short mod, COORD cursorPosition) {
     COORD heightAndWidth = heightWidthWindow(hOut);
+    short newSize = symbSize + mod;
 
-
+    // warunek ograniczaj¹cy wielkoœæ symbolu
+    if (newSize >= 2 && cursorPosition.X < heightAndWidth.X - newSize && cursorPosition.Y > 2 * newSize)
+        symbSize = newSize;
 }
 
 // funkcja ustalaj¹ca granice w poruszaniu siê
