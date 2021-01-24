@@ -3,11 +3,6 @@
     https://docs.microsoft.com/en-us/windows/console/
 
 
-    1. program ma umo¿liwiæ wczytanie rozmiarów na samym pocz¹tku
-    2. z biblioteki windows.h pobieramy rozmiar okna
-    3. muszê wykombinowac sterowanie:   https://en.cppreference.com/w/cpp/header; input/output library
-                                        https://en.cppreference.com/w/cpp/io
-
     TO DO:
         1. problem ze zmian¹ wielkoœci okna - gdy okno zostaje zmniejszone do momentu gdy ekran przesuwa siê w dó³ to
             granice s¹ ustawione poza ekranem (u góry). ZnaleŸæ sposób na zresetowanie granic lub u¿yæ innej
@@ -16,194 +11,190 @@
 */
 
 #include <iostream>
-
 // szereg zaimplementowanych funkcji do zarz¹dzania kursorem, oknem, screen bufforem i klawiatur¹
 #include <windows.h>
 
 using namespace std;
 
-void inputChar(char &sign);         // wpisywanie wyœwietlanego znaku ASCII
-void screenBufferInfo(HANDLE hOut); // zbieranie informacji o screen buffer
-void startScreen ();                // ekran powitalny
-void clearScreen(HANDLE hOut);      // czyœci ekran
-void tutor();                       // sterowanie wyœwietlane u góry ekranu
+COORD heightWidthWindow(HANDLE hOut);  // funkcja do wyliczania wysokoœci i szerokoœci screen buffor w oknie
+COORD startCursorPosition(HANDLE hOut, int &symbSize); // ustawia pozycjê kursora po uruchomieniu
+void startScreen(HANDLE hOut, int &symbSize); // ekran powitalny
+void inputChar(char &sign); // wpisywanie wyœwietlanego znaku ASCII
+void inputSize(HANDLE hOut, int &symbSize); // wpisanie wielkoœci symbolu
+void clearScreen(HANDLE hOut, bool all);  // czyœci ekran w ca³oœci lub od 2-go wiersza
+void tutor(HANDLE hOut);    // sterowanie wyœwietlane u góry ekranu
 COORD GetCursorPosition(HANDLE hOut);   // zwraca pozycjê kursora
-COORD heightWidthWindow (HANDLE hOut);  // funkcja do wyliczania wysokoœci i szerokoœci buffor screen w oknie
-void cursorPosition(HANDLE hOut);       // ustawia pozycjê kursora
-COORD cursorPositionStart(HANDLE hOut);  // ustawia pozycjê kursora po uruchomieniu
-int keyEvent(HANDLE hIn);               // funkcja zwraca wybrane virtual-key codes (numery klawiszy)
-void eventManager(HANDLE hOut);
-void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize);              // funkcja do poruszania siê kursorem
-void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition);     // funkcja do rysowania symbolu
-void symbolSizeManager(HANDLE hOut, short &symbSize, short mod, COORD cursorPosition);
-COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD modPosition, short &symbSize);
+// funkcja do rysowania symbolu
+void drawSymbol(HANDLE hOut, char sign, int symbSize, COORD cursorPosition);
+// funkcja ograniczaj¹ca rozmiar symbolu
+void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, COORD cursorPosition);
+// funkcja ograniczaj¹ca poruszanie siê
+COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, int &symbSize);
+DWORD keyEvent(HANDLE hIn);   // funkcja zwraca wybrane virtual-key codes (numery klawiszy)
+// funkcja do poruszania siê kursorem
+void controls(HANDLE hOut, bool &run, DWORD vKeyCode, char sign, int &symbSize);
+
 
 int main()
 {
     setlocale(LC_ALL, "");
 
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);   // ³¹cznik z wyjœciem standardowym z konsoli, z windows.h
-    HANDLE hConsoleIn = GetStdHandle(STD_INPUT_HANDLE);   // ³¹cznik z wejœciem standardowym z konsoli
-    char letter;                // wyœwietlany znak
-    short symbolSize;             // wielkoœæ wyœwietlanego symbolu
-    COORD middleWindow;         // œrodek okna
-    bool running = true;        // zmienna do przerywania dzia³ania programu
-    // zaimplementowana typ zmiennej do zmiany wygl¹du kursora
+    // windows.h, handle ze standardowym wyjœciem i wejœciem konsoli
+    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE hConsoleIn = GetStdHandle(STD_INPUT_HANDLE);
+    // zaimplementowany typ zmiennej do zmiany wygl¹du kursora
     CONSOLE_CURSOR_INFO conCurInfo = {100, TRUE};
+    char letter;            // wyœwietlany znak
+    int symbolSize = 2;       // wielkoœæ wyœwietlanego symbolu
+    COORD startPosition;    // œrodek okna
+    bool running = true;    // zmienna do przerywania dzia³ania programu
 
-    SetConsoleTitle("s22051");  // tytu³ okna, z windows.h
-    startScreen();              // ekran powitalny
-    inputChar(letter);          // wpisywanie znaku
-    symbolSize = 3;
-    clearScreen(hConsoleOut);   // czyszczenie ekranu
-    middleWindow = cursorPositionStart(hConsoleOut);      // ustawia kursor na œrodek ekranu
-    SetConsoleCursorInfo(hConsoleOut, &conCurInfo); // z windows.h, zmienia wygl¹d kursora
+    // windows.h, tytu³ okna
+    SetConsoleTitle("Grupa 115, Lukasz Kos, s22051");
+    startScreen(hConsoleOut, symbolSize);   // ekran powitalny
+    inputChar(letter);                      // wpisywanie znaku
+    inputSize(hConsoleOut, symbolSize);     // wpisywanie pocz¹tkowego rozmiaru
+    clearScreen(hConsoleOut, true);               // czyszczenie ekranu
+    tutor(hConsoleOut);                     // sterowanie wyœwietlane u góry ekranu
 
-    drawSymbol(hConsoleOut, letter, symbolSize, middleWindow);        // drukowanie symbolu
+    // ustawia kursor na œrodek ekranu
+    startPosition = startCursorPosition(hConsoleOut, symbolSize);
+    // windows.h, zmienia wygl¹d kursora
+    SetConsoleCursorInfo(hConsoleOut, &conCurInfo);
+    // drukowanie symbolu
+    drawSymbol(hConsoleOut, letter, symbolSize, startPosition);
+
+    // sterowanie, ustalanie wielkoœci i przerywanie programu
     do {
         controls(hConsoleOut, running, keyEvent(hConsoleIn), letter, symbolSize);
     } while (running);
 
-
-
     return 0;
 }
 
-// funkcja do wpisywania i zwracania drukowanego znaku
+// funkcja do wyliczania wysokoœci i szerokoœci buffor screen w oknie
+COORD heightWidthWindow (HANDLE hOut) {
+    // zaimplementowana zmienna, która otrzyma informacje o screen buffer
+    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
+    // zaimplementowana zmienna, która zwraca wysokoœæ i szerokoœæ screen buffer w oknie
+    COORD maxSize;
+
+    // windows.h, funkcja zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
+    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);
+    maxSize.X = consoleBufferInfo.srWindow.Right - consoleBufferInfo.srWindow.Left;
+    maxSize.Y = consoleBufferInfo.srWindow.Bottom - consoleBufferInfo.srWindow.Top;
+
+    return maxSize;
+}
+
+// funkcja ustawia pozycjê kursora na œrodek ekranu
+COORD startCursorPosition(HANDLE hOut, int &symbSize) {
+    COORD middleScreen;
+
+    // obliczam œrodek ekranu w osi X
+    middleScreen.X = heightWidthWindow(hOut).X / 2;
+    // obliczam pozycjê kursora w osi Y
+    middleScreen.Y = heightWidthWindow(hOut).Y / 2 + symbSize;
+
+    // windows.h, funkcja do ustawiania pozycji kursora
+    SetConsoleCursorPosition(hOut, middleScreen);
+
+    return middleScreen;
+}
+
+// ekran powitalny
+void startScreen (HANDLE hOut, int &symbSize) {
+    cout << "Program wyœwietla poni¿szy symbol i umo¿liwa poruszanie siê nim " <<
+         "po ekranie oraz zmianê jego rozmiaru.\n" << endl;
+
+    // czêœæ wyœwietlaj¹ca symbol na œrodku ekranu
+    COORD cursorPosition = startCursorPosition(hOut, symbSize);
+    cursorPosition.Y /= 2;
+    drawSymbol (hOut, 'x', symbSize, cursorPosition);
+
+    // resetowanie pozycji kursora pod symbol
+    cursorPosition.X = 0;
+    cursorPosition.Y++;
+    SetConsoleCursorPosition(hOut, cursorPosition);
+}
+
+// funkcja do wpisywania drukowanego znaku
 void inputChar(char &sign) {
     cout << "Proszê wpisaæ dowolny znak" << endl;
     cin >> sign;
 }
 
-// ekran powitalny
-void startScreen () {
-    cout << "Ekran powitalny.\n" << endl;
+// funkcja do wpisywania rozmiaru symbolu
+void inputSize(HANDLE hOut, int &symbSize) {
+    // pobieranie rozmiaru okna
+    COORD maxSize = heightWidthWindow(hOut);
+    // obliczenie maksymalnej wartoœci
+    int mSize = maxSize.Y / 2 - 1;
 
+    cout << "\nProszê wpisaæ rozmiar symbolu (2 - " << mSize << ")" << endl;
+    cin >> symbSize;
+
+    // warunek do sprawdzenia czy rozmiar mieœci siê w wymaganym zakresie
+    while (symbSize < 2 || symbSize > mSize) {
+        cout << "Wpisa³eœ rozmiar poza zakresem. Wpisz wartoœæ od 2 do " << mSize << endl;
+        cin >> symbSize;
+    }
 }
 
-// czyœci ekran
-void clearScreen(HANDLE hOut) {
-    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;   // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
+// czyœci ekran w ca³oœci
+void clearScreen(HANDLE hOut, bool all) {
+    // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
+    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
     DWORD screenBufferTotalChar;    // sumaryczna liczba znaków screen buffer
-    COORD startPoint = {0, 0};      // punkt startowy czyszczenia ekranu
-    DWORD charWritten;              // zwracana wartoœæ. Musia³em j¹ zadeklarowaæ, bo inaczej funkcja FillConsoleOutputCharacter przerywa³¹ dzia³anie programu
+    COORD startPoint;   // punkt startowy czyszczenia ekranu
+    /* zwracana wartoœæ. Musia³em j¹ zadeklarowaæ, bo inaczej funkcja
+        FillConsoleOutputCharacter przerywa³¹ dzia³anie programu */
+    DWORD charWritten;
 
-    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);    // zaimplementowana funkcja, która zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
-    screenBufferTotalChar = consoleBufferInfo.dwSize.X * consoleBufferInfo.dwSize.Y;    // opis przy deklaracji zmiennych
+    // windows.h, funkcja zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
+    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);
+    // obliczam iloœæ znaków (miejsc) na ekranie
+    screenBufferTotalChar = consoleBufferInfo.dwSize.X * (consoleBufferInfo.dwSize.Y);
 
-    FillConsoleOutputCharacter(hOut, ' ', screenBufferTotalChar, startPoint, &charWritten); // zaimplementowana funkcja do wype³nienia ekranu wybranym znakiem
+    startPoint.X = 0;
+    if (all) {
+        startPoint.Y = 0;
+    } else {
+        startPoint.Y = 1;
+    }
+    // windows.h, funkcja do wype³nienia ekranu ci¹giem znaków od wybranej pozycji
+    FillConsoleOutputCharacter(hOut, ' ', screenBufferTotalChar, startPoint, &charWritten);
 }
 
 // sterowanie wyœwietlane u góry ekranu
-void tutor() {
+void tutor(HANDLE hOut) {
+    COORD cursorPosition = {0, 0};
 
-}
-
-// ustawia pozycjê kursora na œrodek ekranu
-COORD cursorPositionStart(HANDLE hOut) {
-    COORD middleScreen;
-
-    // obliczam œrodek ekranu w osi X
-    middleScreen.X = heightWidthWindow(hOut).X / 2;
-    // obliczam œrodek ekranu w osi Y
-    middleScreen.Y = heightWidthWindow(hOut).Y / 2;
-
-    SetConsoleCursorPosition(hOut, middleScreen);   // zaimplementowana funkcja do ustawiania pozycji kursora
-    return middleScreen;
-}
-
-// funkcja do wyliczania wysokoœci i szerokoœci buffor screen w oknie
-COORD heightWidthWindow (HANDLE hOut) {
-    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;   // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
-    COORD heightWidthWindowBuffer;      // zaimplementowany typ zmiennej, która zwraca wysokoœæ i szerokoœæ screen buffer w oknie
-
-    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);    // zaimplementowana zmienna, która zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
-    heightWidthWindowBuffer.X = consoleBufferInfo.srWindow.Right - consoleBufferInfo.srWindow.Left;
-    heightWidthWindowBuffer.Y = consoleBufferInfo.srWindow.Bottom - consoleBufferInfo.srWindow.Top;
-
-    return heightWidthWindowBuffer;
+    SetConsoleCursorPosition(hOut, cursorPosition);
+    cout << "Strza³ki : sterowanie \t+/- : zmiana rozmiaru \t ESC : wyjœcie z programu" << endl;
 }
 
 // zwraca pozycjê kursora
 COORD GetCursorPosition(HANDLE hOut) {
-    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;   // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
+    // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
+    CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
 
-    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);    // zaimplementowana zmienna, która zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
+    // windows.h, funkcja zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
+    GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);
+
     return consoleBufferInfo.dwCursorPosition;
 }
 
-// ustawia pozycjê kursora
-void setCursorPosition(HANDLE hOut, COORD posChange) {
-
-}
-
-// funkcja zwraca virtual-key codes (numery klawiszy)
-int keyEvent(HANDLE hIn) {
-    INPUT_RECORD eventInputArray[128];  // tablica eventów
-    DWORD numInput;     // liczba zarejestrowanych eventów
-    DWORD keyCode;        // zwracany kod
-    ReadConsoleInput(hIn, eventInputArray, 128, &numInput);  // zaimplementowana funkcja
-    for (DWORD i=0; i < numInput; i++) {
-            if (eventInputArray[i].Event.KeyEvent.bKeyDown) {   // gdy klawisz jest wciœniêty (puszczenie klawisza to osobny event)
-                keyCode = eventInputArray[i].Event.KeyEvent.wVirtualKeyCode;
-            }
-    }
-    return keyCode;
-}
-
-// funkcja do zarz¹dzania sterowaniem
-void controls(HANDLE hOut, bool &run, int vKeyCode, char sign, short &symbSize) {
-    COORD cursorPosition = GetCursorPosition(hOut);
-    COORD newPosition = cursorPosition;
-    short mod;
-
-    switch (vKeyCode) {
-        case 37 : {     // left arrow
-            newPosition.X--;
-            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            drawSymbol(hOut, sign, symbSize, newPosition);
-            break; }
-        case 38 : {     // up arrow
-            newPosition.Y--;
-            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            drawSymbol(hOut, sign, symbSize, newPosition);
-            break; }
-        case 39 : {     // right arrow
-            newPosition.X++;
-            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            drawSymbol(hOut, sign, symbSize, newPosition);
-            break; }
-        case 40 : {     // down arrow
-            newPosition.Y++;
-            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            drawSymbol(hOut, sign, symbSize, newPosition);
-            break; }
-        case 187 : {    // plus
-            //symbSize++;
-            mod = 1;
-            symbolSizeManager(hOut, symbSize, mod, cursorPosition);
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
-            break; }
-        case 189 : {    // minus
-            //symbSize--;
-            mod = -1;
-            symbolSizeManager(hOut, symbSize, mod, cursorPosition);
-            drawSymbol(hOut, sign, symbSize, cursorPosition);
-            break; }
-        case 27 : {     // ESC
-            run = false;
-            break; }
-    }
-}
-
 // funkcja do rysowania symbolu
-void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition) {
+void drawSymbol (HANDLE hOut, char sign, int symbSize, COORD cursorPosition) {
     DWORD written;
+    // zmienna do poruszania siê po fragmentach symbolu
     COORD symbolPartCoord = cursorPosition;
 
-    // czyszczenie ekranu i ustalanie pozycji kursora
-    clearScreen(hOut);
-    // zaimplementowana funkcja z windows.h
+    // czyszczenie ekranu
+    clearScreen(hOut, false);
+
+    // zaimplementowana funkcja z windows.h do ustalania pozycji kursora
     SetConsoleCursorPosition(hOut, cursorPosition);
 
     // algorytm do rysowania symbolu
@@ -214,28 +205,31 @@ void drawSymbol (HANDLE hOut, char sign, short &symbSize, COORD cursorPosition) 
         } else {
             symbolPartCoord.X = cursorPosition.X + (2 * symbSize) % i;
         }
+        // windows.h, rysuje znak sign we wspó³rzêdnych symbolPartCoord
         FillConsoleOutputCharacterA(hOut, sign, 1, symbolPartCoord, &written);
     }
 }
 
 // funkcja do zarz¹dzania wielkoœci¹ symbolu
-void symbolSizeManager(HANDLE hOut, short &symbSize, short mod, COORD cursorPosition) {
-    COORD heightAndWidth = heightWidthWindow(hOut);
-    short newSize = symbSize + mod;
+void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, COORD cursorPosition) {
+    // pobieranie rozmiaru okna
+    COORD maxSize = heightWidthWindow(hOut);
+    int newSize = symbSize + mod;
 
-    // warunek ograniczaj¹cy wielkoœæ symbolu
-    if (newSize >= 2 && cursorPosition.X < heightAndWidth.X - newSize && cursorPosition.Y > 2 * newSize)
+    // warunek ograniczaj¹cy wielkoœæ symbolu do rozmiaru okna
+    if (cursorPosition.X<(maxSize.X - newSize) && cursorPosition.Y>(2 * newSize) && newSize >= 2)
         symbSize = newSize;
 }
 
 // funkcja ustalaj¹ca granice w poruszaniu siê
-COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, short &symbSize) {
-    COORD heightAndWidth = heightWidthWindow(hOut);
+COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, int &symbSize) {
+    // pobieranie rozmiaru okna
+    COORD maxSize = heightWidthWindow(hOut);
     COORD returnPosition;
 
     // warunek okreœlaj¹cy granice poruszania siê
-    if (newPosition.X >= 0 && newPosition.X < heightAndWidth.X - symbSize &&
-            newPosition.Y > 2 * symbSize && newPosition.Y < heightAndWidth.Y) {
+    if (newPosition.X >= 0 && newPosition.X <= (maxSize.X - symbSize) &&
+        newPosition.Y > (2 * symbSize) && newPosition.Y < maxSize.Y + 1) {
         returnPosition = newPosition;
     } else
         returnPosition = cursorPosition;
@@ -243,28 +237,77 @@ COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, short &sy
     return returnPosition;
 }
 
-// funkcja testowa do testowania GetConsoleScreenBufferInfo()
-void screenBufferInfo(HANDLE hOut) {
-    CONSOLE_SCREEN_BUFFER_INFO consoleInfo;  // zmienna zawieraj¹ca dane z konsoli
-    char dalej;
-
-    do {
-        GetConsoleScreenBufferInfo(hOut, &consoleInfo);   // funkcja zbiera informacje o oknie konsoli
-        cout << "\nSize of the console screen buffer. X = " << consoleInfo.dwSize.X << " & Y = " << consoleInfo.dwSize.Y << endl;
-
-        /* Poni¿ej najwa¿niejsza wartoœæ w dobieraniu obszaru roboczego do wykorzystania. Dostosowuje siê do wielkoœci okna i scrollingu */
-        cout << "Console screen buffer coordinates. Top = " << consoleInfo.srWindow.Top << ", Left = " << consoleInfo.srWindow.Left <<
-            ", Bottom = " << consoleInfo.srWindow.Bottom << ", Right = " << consoleInfo.srWindow.Right << endl;
-        cout << "Maximum size of console window. X = " << consoleInfo.dwMaximumWindowSize.X << " & Y = " << consoleInfo.dwMaximumWindowSize.Y << endl;
-        cout << "Cursor position. X = " << consoleInfo.dwCursorPosition.X << " & Y = " << consoleInfo.dwCursorPosition.Y << endl;
-        cout << "Attributes of the characters. " << consoleInfo.wAttributes << endl;
-
-        // TEST
+// funkcja œledzi eventy na wejœciu i zwraca virtual-key codes (numery klawiszy)
+DWORD keyEvent(HANDLE hIn) {
+    INPUT_RECORD eventInputArray[128];  // tablica eventów
+    DWORD numInput; // liczba zarejestrowanych eventów
+    DWORD keyCode = 0;  // zwracany kod
 
 
-        cout << "\nNajwiêksza mo¿liwa wielkoœæ okna bazuj¹ca na funkcji zewnêtrznej. X = " << GetLargestConsoleWindowSize(hOut).X << " & Y = " << GetLargestConsoleWindowSize(hOut).Y << endl;
+    // windows.h, rejestruje eventy na wejœciu
+    ReadConsoleInput(hIn, eventInputArray, 128, &numInput);
+    for (DWORD i=0; i < numInput; i++) {
+        // rejestruje tylko wciœniêcie klawisza (puszczenie to osobny event)
+        if (eventInputArray[i].Event.KeyEvent.bKeyDown) {
+            keyCode = eventInputArray[i].Event.KeyEvent.wVirtualKeyCode;
+        }
+    }
+    // zwraca virtual-key code
+    return keyCode;
+}
 
-        cout << "\nczy kontynuowaæ?" << endl;
-        cin >> dalej;
-    } while (dalej == 't');
+// funkcja do zarz¹dzania sterowaniem
+void controls(HANDLE hOut, bool &run, DWORD vKeyCode, char sign, int &symbSize) {
+    // pobiera pozycjê kursora
+    COORD cursorPosition = GetCursorPosition(hOut);
+    COORD newPosition = cursorPosition;
+    int mod;
+
+    switch (vKeyCode) {
+        case 37 : {     // left arrow
+            newPosition.X--;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            //drawSymbol(hOut, sign, symbSize, newPosition, true);
+            break; }
+        case 38 : {     // up arrow
+            newPosition.Y--;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            //drawSymbol(hOut, sign, symbSize, newPosition, true);
+            break; }
+        case 39 : {     // right arrow
+            newPosition.X++;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            //drawSymbol(hOut, sign, symbSize, newPosition, true);
+            break; }
+        case 40 : {     // down arrow
+            newPosition.Y++;
+            newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
+            //drawSymbol(hOut, sign, symbSize, newPosition, true);
+            break; }
+        case 107 : {    // plus na numerycznej
+            mod = 1;
+            symbolSizeManager(hOut, symbSize, mod, newPosition);
+            //drawSymbol(hOut, sign, symbSize, cursorPosition, true);
+            break; }
+        case 109 : {    // minus na numerycznej
+            mod = -1;
+            symbolSizeManager(hOut, symbSize, mod, newPosition);
+            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
+            break; }
+        case 187 : {    // plus
+            mod = 1;
+            symbolSizeManager(hOut, symbSize, mod, newPosition);
+            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
+            break; }
+        case 189 : {    // minus
+            mod = -1;
+            symbolSizeManager(hOut, symbSize, mod, newPosition);
+            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
+            break; }
+        case 27 : {     // ESC
+            run = false;
+            break; }
+        default: {}
+    }
+    drawSymbol(hOut, sign, symbSize, newPosition);
 }
