@@ -1,13 +1,6 @@
 /*
     Podstaw¹ pod zaimplementowane funkcje z biblioteki windows.h sta³ siê Microsoft'owy dokument o konsoli
     https://docs.microsoft.com/en-us/windows/console/
-
-
-    TO DO:
-        1. problem ze zmian¹ wielkoœci okna - gdy okno zostaje zmniejszone do momentu gdy ekran przesuwa siê w dó³ to
-            granice s¹ ustawione poza ekranem (u góry). ZnaleŸæ sposób na zresetowanie granic lub u¿yæ innej
-            funkcji windowsowej.
-
 */
 
 #include <iostream>
@@ -17,12 +10,13 @@
 using namespace std;
 
 COORD heightWidthWindow(HANDLE hOut);  // funkcja do wyliczania wysokoœci i szerokoœci screen buffor w oknie
-COORD startCursorPosition(HANDLE hOut, int &symbSize); // ustawia pozycjê kursora po uruchomieniu
+COORD middleScreen(HANDLE hOut, int &symbSize); // ustawia pozycjê kursora po uruchomieniu
 void startScreen(HANDLE hOut, int &symbSize); // ekran powitalny
 void inputChar(char &sign); // wpisywanie wyœwietlanego znaku ASCII
 void inputSize(HANDLE hOut, int &symbSize); // wpisanie wielkoœci symbolu
 void clearScreen(HANDLE hOut, bool all);  // czyœci ekran w ca³oœci lub od 2-go wiersza
 void tutor(HANDLE hOut);    // sterowanie wyœwietlane u góry ekranu
+COORD startCursorPosition(HANDLE hOut); // pozycja startowa symbolu
 COORD GetCursorPosition(HANDLE hOut);   // zwraca pozycjê kursora
 // funkcja do rysowania symbolu
 void drawSymbol(HANDLE hOut, char sign, int symbSize, COORD cursorPosition);
@@ -45,7 +39,7 @@ int main()
     // zaimplementowany typ zmiennej do zmiany wygl¹du kursora
     CONSOLE_CURSOR_INFO conCurInfo = {100, TRUE};
     char letter;            // wyœwietlany znak
-    int symbolSize = 2;       // wielkoœæ wyœwietlanego symbolu
+    int symbolSize = 2;     // wielkoœæ wyœwietlanego symbolu
     COORD startPosition;    // œrodek okna
     bool running = true;    // zmienna do przerywania dzia³ania programu
 
@@ -54,11 +48,11 @@ int main()
     startScreen(hConsoleOut, symbolSize);   // ekran powitalny
     inputChar(letter);                      // wpisywanie znaku
     inputSize(hConsoleOut, symbolSize);     // wpisywanie pocz¹tkowego rozmiaru
-    clearScreen(hConsoleOut, true);               // czyszczenie ekranu
-    tutor(hConsoleOut);                     // sterowanie wyœwietlane u góry ekranu
+    clearScreen(hConsoleOut, true);         // czyszczenie ekranu
+    tutor(hConsoleOut);                         // sterowanie wyœwietlane u góry ekranu
 
     // ustawia kursor na œrodek ekranu
-    startPosition = startCursorPosition(hConsoleOut, symbolSize);
+    startPosition = startCursorPosition(hConsoleOut);
     // windows.h, zmienia wygl¹d kursora
     SetConsoleCursorInfo(hConsoleOut, &conCurInfo);
     // drukowanie symbolu
@@ -88,7 +82,7 @@ COORD heightWidthWindow (HANDLE hOut) {
 }
 
 // funkcja ustawia pozycjê kursora na œrodek ekranu
-COORD startCursorPosition(HANDLE hOut, int &symbSize) {
+COORD middleScreen(HANDLE hOut, int &symbSize) {
     COORD middleScreen;
 
     // obliczam œrodek ekranu w osi X
@@ -108,7 +102,7 @@ void startScreen (HANDLE hOut, int &symbSize) {
          "po ekranie oraz zmianê jego rozmiaru.\n" << endl;
 
     // czêœæ wyœwietlaj¹ca symbol na œrodku ekranu
-    COORD cursorPosition = startCursorPosition(hOut, symbSize);
+    COORD cursorPosition = middleScreen(hOut, symbSize);
     cursorPosition.Y /= 2;
     drawSymbol (hOut, 'x', symbSize, cursorPosition);
 
@@ -154,7 +148,7 @@ void clearScreen(HANDLE hOut, bool all) {
     // windows.h, funkcja zbiera informacje o screen buffer i przekazuje do zmiennej consoleBufferInfo
     GetConsoleScreenBufferInfo(hOut, &consoleBufferInfo);
     // obliczam iloœæ znaków (miejsc) na ekranie
-    screenBufferTotalChar = consoleBufferInfo.dwSize.X * (consoleBufferInfo.dwSize.Y);
+    screenBufferTotalChar = consoleBufferInfo.dwSize.X * consoleBufferInfo.dwSize.Y;
 
     startPoint.X = 0;
     if (all) {
@@ -172,6 +166,17 @@ void tutor(HANDLE hOut) {
 
     SetConsoleCursorPosition(hOut, cursorPosition);
     cout << "Strza³ki : sterowanie \t+/- : zmiana rozmiaru \t ESC : wyjœcie z programu" << endl;
+}
+
+// pozycja startowa ustawiaj¹ca symbol w lewym dolnym rogu
+COORD startCursorPosition(HANDLE hOut) {
+    COORD maxSize = heightWidthWindow(hOut);
+    COORD startPosition;
+
+    startPosition.X = 0;
+    startPosition.Y = maxSize.Y;
+
+    return startPosition;
 }
 
 // zwraca pozycjê kursora
@@ -201,9 +206,9 @@ void drawSymbol (HANDLE hOut, char sign, int symbSize, COORD cursorPosition) {
     for (int i=0; i <= 2*symbSize; i++) {
         symbolPartCoord.Y = cursorPosition.Y - i;
         if (i <= symbSize) {
-            symbolPartCoord.X = cursorPosition.X + i;
+            symbolPartCoord.X = cursorPosition.X + (2 * i);
         } else {
-            symbolPartCoord.X = cursorPosition.X + (2 * symbSize) % i;
+            symbolPartCoord.X = cursorPosition.X + ((2 * symbSize) % i) * 2;
         }
         // windows.h, rysuje znak sign we wspó³rzêdnych symbolPartCoord
         FillConsoleOutputCharacterA(hOut, sign, 1, symbolPartCoord, &written);
@@ -217,7 +222,7 @@ void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, COORD cursorPosition
     int newSize = symbSize + mod;
 
     // warunek ograniczaj¹cy wielkoœæ symbolu do rozmiaru okna
-    if (cursorPosition.X<(maxSize.X - newSize) && cursorPosition.Y>(2 * newSize) && newSize >= 2)
+    if (cursorPosition.X<=(maxSize.X - (2 * newSize)) && cursorPosition.Y>(2 * newSize) && newSize >= 2)
         symbSize = newSize;
 }
 
@@ -228,7 +233,7 @@ COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, int &symb
     COORD returnPosition;
 
     // warunek okreœlaj¹cy granice poruszania siê
-    if (newPosition.X >= 0 && newPosition.X <= (maxSize.X - symbSize) &&
+    if (newPosition.X >= 0 && newPosition.X <= (maxSize.X - (2 * symbSize)) &&
         newPosition.Y > (2 * symbSize) && newPosition.Y < maxSize.Y + 1) {
         returnPosition = newPosition;
     } else
@@ -267,42 +272,34 @@ void controls(HANDLE hOut, bool &run, DWORD vKeyCode, char sign, int &symbSize) 
         case 37 : {     // left arrow
             newPosition.X--;
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            //drawSymbol(hOut, sign, symbSize, newPosition, true);
             break; }
         case 38 : {     // up arrow
             newPosition.Y--;
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            //drawSymbol(hOut, sign, symbSize, newPosition, true);
             break; }
         case 39 : {     // right arrow
             newPosition.X++;
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            //drawSymbol(hOut, sign, symbSize, newPosition, true);
             break; }
         case 40 : {     // down arrow
             newPosition.Y++;
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
-            //drawSymbol(hOut, sign, symbSize, newPosition, true);
             break; }
         case 107 : {    // plus na numerycznej
             mod = 1;
             symbolSizeManager(hOut, symbSize, mod, newPosition);
-            //drawSymbol(hOut, sign, symbSize, cursorPosition, true);
             break; }
         case 109 : {    // minus na numerycznej
             mod = -1;
             symbolSizeManager(hOut, symbSize, mod, newPosition);
-            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
             break; }
         case 187 : {    // plus
             mod = 1;
             symbolSizeManager(hOut, symbSize, mod, newPosition);
-            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
             break; }
         case 189 : {    // minus
             mod = -1;
             symbolSizeManager(hOut, symbSize, mod, newPosition);
-            // drawSymbol(hOut, sign, symbSize, cursorPosition, true);
             break; }
         case 27 : {     // ESC
             run = false;
