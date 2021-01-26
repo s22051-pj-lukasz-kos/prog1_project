@@ -10,8 +10,7 @@
 using namespace std;
 
 COORD heightWidthWindow(HANDLE hOut);  // funkcja do wyliczania wysokoœci i szerokoœci screen buffor w oknie
-COORD middleScreen(HANDLE hOut, int &symbSize); // ustawia pozycjê kursora po uruchomieniu
-void startScreen(HANDLE hOut, int &symbSize); // ekran powitalny
+void startScreen(HANDLE hOut, int symbSize); // ekran powitalny
 void inputChar(char &sign); // wpisywanie wyœwietlanego znaku ASCII
 void inputSize(HANDLE hOut, int &symbSize); // wpisanie wielkoœci symbolu
 void clearScreen(HANDLE hOut, bool all);  // czyœci ekran w ca³oœci lub od 2-go wiersza
@@ -67,7 +66,7 @@ int main()
 }
 
 // funkcja do wyliczania wysokoœci i szerokoœci buffor screen w oknie
-COORD heightWidthWindow (HANDLE hOut) {
+COORD heightWidthWindow (HANDLE hOut) { // standardowe wyjœcie z konsoli
     // zaimplementowana zmienna, która otrzyma informacje o screen buffer
     CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
     // zaimplementowana zmienna, która zwraca wysokoœæ i szerokoœæ screen buffer w oknie
@@ -81,29 +80,15 @@ COORD heightWidthWindow (HANDLE hOut) {
     return maxSize;
 }
 
-// funkcja ustawia pozycjê kursora na œrodek ekranu
-COORD middleScreen(HANDLE hOut, int &symbSize) {
-    COORD middleScreen;
-
-    // obliczam œrodek ekranu w osi X
-    middleScreen.X = heightWidthWindow(hOut).X / 2;
-    // obliczam pozycjê kursora w osi Y
-    middleScreen.Y = heightWidthWindow(hOut).Y / 2 + symbSize;
-
-    // windows.h, funkcja do ustawiania pozycji kursora
-    SetConsoleCursorPosition(hOut, middleScreen);
-
-    return middleScreen;
-}
-
 // ekran powitalny
-void startScreen (HANDLE hOut, int &symbSize) {
+void startScreen (HANDLE hOut, int symbSize) {
     cout << "Program wyœwietla poni¿szy symbol i umo¿liwa poruszanie siê nim " <<
          "po ekranie oraz zmianê jego rozmiaru.\n" << endl;
 
     // czêœæ wyœwietlaj¹ca symbol na œrodku ekranu
-    COORD cursorPosition = middleScreen(hOut, symbSize);
-    cursorPosition.Y /= 2;
+    COORD cursorPosition;
+    cursorPosition.X = heightWidthWindow(hOut).X / 2;
+    cursorPosition.Y = heightWidthWindow(hOut).Y / 4;
     drawSymbol (hOut, 'x', symbSize, cursorPosition);
 
     // resetowanie pozycji kursora pod symbol
@@ -128,16 +113,16 @@ void inputSize(HANDLE hOut, int &symbSize) {
     cout << "\nProszê wpisaæ rozmiar symbolu (2 - " << mSize << ")" << endl;
     cin >> symbSize;
 
-    // warunek do sprawdzenia czy rozmiar mieœci siê w wymaganym zakresie
+    // warunek do sprawdzenia czy wpisany rozmiar mieœci siê w wymaganym zakresie
     while (symbSize < 2 || symbSize > mSize) {
         cout << "Wpisa³eœ rozmiar poza zakresem. Wpisz wartoœæ od 2 do " << mSize << endl;
         cin >> symbSize;
     }
 }
 
-// czyœci ekran w ca³oœci
+// czyœci ekran w ca³oœci b¹dŸ od drugiego wiersza (tutorial w pierwszej linijce)
 void clearScreen(HANDLE hOut, bool all) {
-    // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
+    // zaimplementowana zmienna, która otrzyma informacje o screen buffer
     CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
     DWORD screenBufferTotalChar;    // sumaryczna liczba znaków screen buffer
     COORD startPoint;   // punkt startowy czyszczenia ekranu
@@ -150,6 +135,7 @@ void clearScreen(HANDLE hOut, bool all) {
     // obliczam iloœæ znaków (miejsc) na ekranie
     screenBufferTotalChar = consoleBufferInfo.dwSize.X * consoleBufferInfo.dwSize.Y;
 
+    // jeœli parametr all = false to ekran jest czyszczony od drugiego wiersza
     startPoint.X = 0;
     if (all) {
         startPoint.Y = 0;
@@ -202,7 +188,10 @@ void drawSymbol (HANDLE hOut, char sign, int symbSize, COORD cursorPosition) {
     // zaimplementowana funkcja z windows.h do ustalania pozycji kursora
     SetConsoleCursorPosition(hOut, cursorPosition);
 
-    // algorytm do rysowania symbolu
+    /* algorytm do rysowania symbolu,
+		kursor znajduje siê w lewym dolnym rogu i od tego miejsca
+		zaczyna siê drukowanie znaków */
+
     for (int i=0; i <= 2*symbSize; i++) {
         symbolPartCoord.Y = cursorPosition.Y - i;
         if (i <= symbSize) {
@@ -216,9 +205,11 @@ void drawSymbol (HANDLE hOut, char sign, int symbSize, COORD cursorPosition) {
 }
 
 // funkcja do zarz¹dzania wielkoœci¹ symbolu
-void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, COORD cursorPosition) {
+void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, // modyfikator rozmiaru symbolu
+                       COORD cursorPosition) {
     // pobieranie rozmiaru okna
     COORD maxSize = heightWidthWindow(hOut);
+    // nowy rozmiar do przetestowania
     int newSize = symbSize + mod;
 
     // warunek ograniczaj¹cy wielkoœæ symbolu do rozmiaru okna
@@ -227,7 +218,9 @@ void symbolSizeManager(HANDLE hOut, int &symbSize, int mod, COORD cursorPosition
 }
 
 // funkcja ustalaj¹ca granice w poruszaniu siê
-COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, int &symbSize) {
+COORD boundaries(HANDLE hOut, COORD cursorPosition, // obecna pozycja
+                 COORD newPosition, // nowa pozycja do sprawdzenia
+                 int &symbSize) {
     // pobieranie rozmiaru okna
     COORD maxSize = heightWidthWindow(hOut);
     COORD returnPosition;
@@ -235,8 +228,10 @@ COORD boundaries(HANDLE hOut, COORD cursorPosition, COORD newPosition, int &symb
     // warunek okreœlaj¹cy granice poruszania siê
     if (newPosition.X >= 0 && newPosition.X <= (maxSize.X - (2 * symbSize)) &&
         newPosition.Y > (2 * symbSize) && newPosition.Y < maxSize.Y + 1) {
+        // jeœli newPosition mieœci siê w screen buffer to jest zwracany
         returnPosition = newPosition;
     } else
+        // jeœli nie to jest zwracana obecna pozycja
         returnPosition = cursorPosition;
 
     return returnPosition;
@@ -262,15 +257,20 @@ DWORD keyEvent(HANDLE hIn) {
 }
 
 // funkcja do zarz¹dzania sterowaniem
-void controls(HANDLE hOut, bool &run, DWORD vKeyCode, char sign, int &symbSize) {
+void controls(HANDLE hOut, bool &run, DWORD vKeyCode, // virtual-key code dostarczany z funkcji keyEvent
+              char sign, int &symbSize) {
     // pobiera pozycjê kursora
     COORD cursorPosition = GetCursorPosition(hOut);
+    // potencjalnie nowa pozycja do przetestowania (granica screen buffer)
     COORD newPosition = cursorPosition;
+    // modyfikacja rozmiaru
     int mod;
 
     switch (vKeyCode) {
         case 37 : {     // left arrow
             newPosition.X--;
+            // newPosition jest testowany w boundaries i zwracana wartoœæ jest
+            // teraz nowym newPosition
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
             break; }
         case 38 : {     // up arrow
@@ -286,7 +286,9 @@ void controls(HANDLE hOut, bool &run, DWORD vKeyCode, char sign, int &symbSize) 
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
             break; }
         case 107 : {    // plus na numerycznej
+            // modyfikator rozmiaru
             mod = 1;
+            // testowanie nowego rozmiaru symbolu
             symbolSizeManager(hOut, symbSize, mod, newPosition);
             break; }
         case 109 : {    // minus na numerycznej
