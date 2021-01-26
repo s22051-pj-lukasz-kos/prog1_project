@@ -43,7 +43,7 @@ int main()
     bool running = true;    // zmienna do przerywania dzia³ania programu
 
     // windows.h, tytu³ okna
-    SetConsoleTitle("Grupa 115, Lukasz Kos, s22051");
+    SetConsoleTitle("Grupa 115, Lukasz Kos, s22051, Projekt 115");
     startScreen(hConsoleOut, symbolSize);   // ekran powitalny
     inputChar(letter);                      // wpisywanie znaku
     inputSize(hConsoleOut, symbolSize);     // wpisywanie pocz¹tkowego rozmiaru
