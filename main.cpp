@@ -16,7 +16,7 @@ void inputSize(HANDLE hOut, int &symbSize); // wpisanie wielkoœci symbolu
 void clearScreen(HANDLE hOut, bool all);  // czyœci ekran w ca³oœci lub od 2-go wiersza
 void tutor(HANDLE hOut);    // sterowanie wyœwietlane u góry ekranu
 COORD startCursorPosition(HANDLE hOut); // pozycja startowa symbolu
-COORD GetCursorPosition(HANDLE hOut);   // zwraca pozycjê kursora
+COORD getCursorPosition(HANDLE hOut);   // zwraca pozycjê kursora
 // funkcja do rysowania symbolu
 void drawSymbol(HANDLE hOut, char sign, int symbSize, COORD cursorPosition);
 // funkcja ograniczaj¹ca rozmiar symbolu
@@ -48,7 +48,7 @@ int main()
     inputChar(letter);                      // wpisywanie znaku
     inputSize(hConsoleOut, symbolSize);     // wpisywanie pocz¹tkowego rozmiaru
     clearScreen(hConsoleOut, true);         // czyszczenie ekranu
-    tutor(hConsoleOut);                         // sterowanie wyœwietlane u góry ekranu
+    tutor(hConsoleOut);                     // sterowanie wyœwietlane u góry ekranu
 
     // ustawia kursor na œrodek ekranu
     startPosition = startCursorPosition(hConsoleOut);
@@ -166,7 +166,7 @@ COORD startCursorPosition(HANDLE hOut) {
 }
 
 // zwraca pozycjê kursora
-COORD GetCursorPosition(HANDLE hOut) {
+COORD getCursorPosition(HANDLE hOut) {
     // zaimplemmentowana zmienna, która otrzyma informacje o screen buffer
     CONSOLE_SCREEN_BUFFER_INFO consoleBufferInfo;
 
@@ -257,10 +257,11 @@ DWORD keyEvent(HANDLE hIn) {
 }
 
 // funkcja do zarz¹dzania sterowaniem
-void controls(HANDLE hOut, bool &run, DWORD vKeyCode, // virtual-key code dostarczany z funkcji keyEvent
+void controls(HANDLE hOut, bool &run, // zmienna przerywaj¹ca dzia³anie programu
+              DWORD vKeyCode, // virtual-key code dostarczany z funkcji keyEvent
               char sign, int &symbSize) {
     // pobiera pozycjê kursora
-    COORD cursorPosition = GetCursorPosition(hOut);
+    COORD cursorPosition = getCursorPosition(hOut);
     // potencjalnie nowa pozycja do przetestowania (granica screen buffer)
     COORD newPosition = cursorPosition;
     // modyfikacja rozmiaru
@@ -269,8 +270,8 @@ void controls(HANDLE hOut, bool &run, DWORD vKeyCode, // virtual-key code dostar
     switch (vKeyCode) {
         case 37 : {     // left arrow
             newPosition.X--;
-            // newPosition jest testowany w boundaries i zwracana wartoœæ jest
-            // teraz nowym newPosition
+            /* newPosition jest testowany w boundaries i zwracana wartoœæ jest
+               teraz nowym newPosition */
             newPosition = boundaries(hOut, cursorPosition, newPosition, symbSize);
             break; }
         case 38 : {     // up arrow
